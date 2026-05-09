@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router';
-import { fetchSongData, useFetch } from '@chordpro/shared';
+import { useRoute, useRouter } from 'vue-router';
+import {
+  fetchSongData,
+  useFetch,
+  useSetsStore,
+  type Song as SetSong,
+  type SongListResponse,
+} from '@chordpro/shared';
 import { parseChordPro } from '@/lib/parseChordPro';
 import ChordSheetJS from 'chordsheetjs';
 import type { Song } from 'chordsheetjs';
@@ -8,9 +14,12 @@ import LoadingSpinner from '@chordpro/shared/src/components/LoadingSpinner.vue';
 import TheHeader from '@chordpro/shared/src/components/TheHeader.vue';
 import RoundIconButton from '@chordpro/shared/src/components/RoundIconButton.vue';
 import { ChevronLeft } from 'lucide-vue-next';
+import { computed, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 
 const route = useRoute();
-const slug = route.params.slug as string;
+const router = useRouter();
+const slug = computed(() => route.params.slug as string);
 const formatter = new ChordSheetJS.HtmlDivFormatter();
 
 const { data, isLoading, execute } = useFetch<{
@@ -18,13 +27,69 @@ const { data, isLoading, execute } = useFetch<{
   metadata: Record<string, string | string[]>;
 }>();
 
-execute(async () => {
-  const result = await fetchSongData(`/songs/${slug}.chordpro`);
-  const song = parseChordPro(result);
-  const metadata = song.metadata.metadata;
+watch(
+  slug,
+  (s) =>
+    execute(async () => {
+      const result = await fetchSongData(`/songs/${s}.chordpro`);
+      const song = parseChordPro(result);
+      const metadata = song.metadata.metadata;
+      return { song, metadata };
+    }),
+  { immediate: true },
+);
 
-  return { song, metadata };
+const { activeSlug } = storeToRefs(useSetsStore());
+const { data: setData, execute: executeSet } = useFetch<SongListResponse>();
+
+watch(
+  activeSlug,
+  (s) => {
+    if (s) executeSet(() => fetchSongData(`/sets/${s}.json`));
+  },
+  { immediate: true },
+);
+
+const songs = computed<SetSong[]>(() => {
+  const raw = setData.value?.songs?.data;
+  if (!raw) return [];
+  return Array.isArray(raw) ? raw : Object.values(raw);
 });
+const currentIndex = computed(() => songs.value.findIndex((s) => s.slug === slug.value));
+const prevSong = computed<SetSong | null>(
+  () => (currentIndex.value > 0 ? songs.value[currentIndex.value - 1] : null) ?? null,
+);
+const nextSong = computed<SetSong | null>(
+  () =>
+    (currentIndex.value >= 0 && currentIndex.value < songs.value.length - 1
+      ? songs.value[currentIndex.value + 1]
+      : null) ?? null,
+);
+
+const SWIPE_THRESHOLD = 60;
+let touchStartX = 0;
+let touchStartY = 0;
+
+function onTouchStart(e: TouchEvent) {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+}
+
+function onTouchEnd(e: TouchEvent) {
+  const t = e.changedTouches[0];
+  if (!t) return;
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  if (Math.abs(dx) < SWIPE_THRESHOLD) return;
+  if (Math.abs(dy) > Math.abs(dx)) return;
+  if (dx < 0 && nextSong.value) {
+    router.push({ name: 'song', params: { slug: nextSong.value.slug } });
+  } else if (dx > 0 && prevSong.value) {
+    router.push({ name: 'song', params: { slug: prevSong.value.slug } });
+  }
+}
 </script>
 
 <template>
@@ -39,7 +104,7 @@ execute(async () => {
       </template>
     </TheHeader>
 
-    <div class="content">
+    <div class="px-4">
       <h2>{{ data.metadata.subtitle }}</h2>
 
       <dl class="ml-auto grid w-fit grid-cols-[auto_auto] gap-x-3">
@@ -59,17 +124,28 @@ execute(async () => {
         </template>
       </dl>
 
-      <div class="song" v-html="formatter.format(data.song)"></div>
+      <div class="relative" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
+        <div class="song" v-html="formatter.format(data.song)"></div>
+
+        <RouterLink
+          v-if="prevSong"
+          :to="{ name: 'song', params: { slug: prevSong.slug } }"
+          class="absolute inset-y-0 left-0 z-10 w-16"
+          :aria-label="`Previous: ${prevSong.title}`"
+        />
+        <RouterLink
+          v-if="nextSong"
+          :to="{ name: 'song', params: { slug: nextSong.slug } }"
+          class="absolute inset-y-0 right-0 z-10 w-16"
+          :aria-label="`Next: ${nextSong.title}`"
+        />
+      </div>
     </div>
   </template>
 </template>
 
 <style lang="scss">
 $comment-color: #0087ff;
-
-.content {
-  padding-inline: 1rem;
-}
 
 .title,
 .subtitle {
