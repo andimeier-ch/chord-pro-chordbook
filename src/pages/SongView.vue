@@ -8,7 +8,7 @@ import {
   type SetResponse,
 } from '@chordpro/shared';
 import { parseChordPro } from '@/lib/parseChordPro';
-import ChordSheetJS from 'chordsheetjs';
+import ChordSheetJS, { Key } from 'chordsheetjs';
 import type { Song } from 'chordsheetjs';
 import LoadingSpinner from '@chordpro/shared/src/components/LoadingSpinner.vue';
 import TheHeader from '@chordpro/shared/src/components/TheHeader.vue';
@@ -67,6 +67,20 @@ watch(
   },
   { immediate: true },
 );
+
+const displayedSong = computed<Song | null>(() => {
+  if (!data.value) return null;
+  const originalKey = data.value.metadata.key;
+  if (!originalKey || !songKey.value) return data.value.song;
+  const keyString = Array.isArray(originalKey) ? originalKey[0] : originalKey;
+  if (!keyString) return data.value.song;
+  try {
+    const delta = Key.distance(keyString, songKey.value);
+    return delta === 0 ? data.value.song : data.value.song.transpose(delta);
+  } catch {
+    return data.value.song;
+  }
+});
 
 const SWIPE_THRESHOLD = 60;
 let touchStartX = 0;
@@ -130,7 +144,7 @@ function onTouchEnd(e: TouchEvent) {
       </dl>
 
       <div class="relative" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
-        <div class="song" v-html="formatter.format(data.song)"></div>
+        <div class="song" v-if="displayedSong" v-html="formatter.format(displayedSong)"></div>
 
         <RouterLink
           v-if="prevSong"
