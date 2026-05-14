@@ -5,7 +5,7 @@ import {
   useFetch,
   useSetsStore,
   type Song as SetSong,
-  type SongListResponse,
+  type SetResponse,
 } from '@chordpro/shared';
 import { parseChordPro } from '@/lib/parseChordPro';
 import ChordSheetJS from 'chordsheetjs';
@@ -22,25 +22,8 @@ const router = useRouter();
 const slug = computed(() => route.params.slug as string);
 const formatter = new ChordSheetJS.HtmlDivFormatter();
 
-const { data, isLoading, execute } = useFetch<{
-  song: Song;
-  metadata: Record<string, string | string[]>;
-}>();
-
-watch(
-  slug,
-  (s) =>
-    execute(async () => {
-      const result = await fetchSongData(`/songs/${s}.chordpro`);
-      const song = parseChordPro(result);
-      const metadata = song.metadata.metadata;
-      return { song, metadata };
-    }),
-  { immediate: true },
-);
-
 const { activeSlug } = storeToRefs(useSetsStore());
-const { data: setData, execute: executeSet } = useFetch<SongListResponse>();
+const { data: setData, execute: executeSet } = useFetch<SetResponse>();
 
 watch(
   activeSlug,
@@ -50,12 +33,12 @@ watch(
   { immediate: true },
 );
 
-const songs = computed<SetSong[]>(() => {
-  const raw = setData.value?.songs?.data;
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : Object.values(raw);
-});
+const songs = computed<SetSong[]>(() => setData.value?.songs ?? []);
 const currentIndex = computed(() => songs.value.findIndex((s) => s.slug === slug.value));
+const currentSong = computed<SetSong | null>(
+  () => (currentIndex.value >= 0 ? songs.value[currentIndex.value] : null) ?? null,
+);
+const songKey = computed(() => currentSong.value?.key ?? null);
 const prevSong = computed<SetSong | null>(
   () => (currentIndex.value > 0 ? songs.value[currentIndex.value - 1] : null) ?? null,
 );
@@ -64,6 +47,25 @@ const nextSong = computed<SetSong | null>(
     (currentIndex.value >= 0 && currentIndex.value < songs.value.length - 1
       ? songs.value[currentIndex.value + 1]
       : null) ?? null,
+);
+
+const { data, isLoading, execute } = useFetch<{
+  song: Song;
+  metadata: Record<string, string | string[]>;
+}>();
+
+watch(
+  currentSong,
+  (song) => {
+    if (!song) return;
+    execute(async () => {
+      const result = await fetchSongData(`/songs/${song.slug}.chordpro`);
+      const parsed = parseChordPro(result);
+      const metadata = parsed.metadata.metadata;
+      return { song: parsed, metadata };
+    });
+  },
+  { immediate: true },
 );
 
 const SWIPE_THRESHOLD = 60;
@@ -108,9 +110,12 @@ function onTouchEnd(e: TouchEvent) {
       <h2>{{ data.metadata.subtitle }}</h2>
 
       <dl class="ml-auto grid w-fit grid-cols-[auto_auto] gap-x-3">
-        <template v-if="data.metadata.key">
-          <dt class="font-bold">Key:</dt>
-          <dd>{{ data.metadata.key }}</dd>
+        <template v-if="songKey">
+          <dt class="font-bold">Song Key:</dt>
+          <dd>
+            {{ songKey }}
+            <span v-if="data.metadata.key">(original: {{ data.metadata.key }})</span>
+          </dd>
         </template>
 
         <template v-if="data.metadata.tempo">
