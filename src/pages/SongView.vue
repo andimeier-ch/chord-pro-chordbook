@@ -121,27 +121,21 @@ function onTouchEnd(e: TouchEvent) {
     </TheHeader>
 
     <div class="px-4">
-      <h2>{{ data.metadata.subtitle }}</h2>
+      <div class="flex justify-between flex-wrap gap-x-8 gap-y-4">
+        <h2>{{ data.metadata.subtitle }}</h2>
 
-      <dl class="ml-auto grid w-fit grid-cols-[auto_auto] gap-x-3">
-        <template v-if="songKey">
-          <dt class="font-bold">Song Key:</dt>
-          <dd>
+        <p class="flex flex-col items-end grow shrink-0">
+          <span v-if="songKey">
             {{ songKey }}
-            <span v-if="data.metadata.key">(original: {{ data.metadata.key }})</span>
-          </dd>
-        </template>
 
-        <template v-if="data.metadata.tempo">
-          <dt class="font-bold">Tempo:</dt>
-          <dd>{{ data.metadata.tempo }}</dd>
-        </template>
+            <template v-if="data.metadata.key"> (original: {{ data.metadata.key }}) </template>
+          </span>
 
-        <template v-if="data.metadata.time">
-          <dt class="font-bold">Time:</dt>
-          <dd>{{ data.metadata.time }}</dd>
-        </template>
-      </dl>
+          <span v-if="data.metadata.tempo || data.metadata.time">
+            {{ data.metadata.tempo }} BPM {{ data.metadata.time }}
+          </span>
+        </p>
+      </div>
 
       <div class="relative" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
         <div class="song" v-if="displayedSong" v-html="formatter.format(displayedSong)"></div>
