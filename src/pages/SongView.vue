@@ -139,21 +139,21 @@ function onTouchEnd(e: TouchEvent) {
 
       <div class="relative" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
         <div class="song" v-if="displayedSong" v-html="formatter.format(displayedSong)"></div>
-
-        <RouterLink
-          v-if="prevSong"
-          :to="{ name: 'song', params: { slug: prevSong.slug } }"
-          class="absolute inset-y-0 left-0 z-10 w-16"
-          :aria-label="`Previous: ${prevSong.title}`"
-        />
-        <RouterLink
-          v-if="nextSong"
-          :to="{ name: 'song', params: { slug: nextSong.slug } }"
-          class="absolute inset-y-0 right-0 z-10 w-16"
-          :aria-label="`Next: ${nextSong.title}`"
-        />
       </div>
     </div>
+
+    <RouterLink
+      v-if="prevSong"
+      :to="{ name: 'song', params: { slug: prevSong.slug } }"
+      class="absolute inset-y-0 left-0 z-10 w-1/8"
+      :aria-label="`Previous: ${prevSong.title}`"
+    />
+    <RouterLink
+      v-if="nextSong"
+      :to="{ name: 'song', params: { slug: nextSong.slug } }"
+      class="absolute inset-y-0 right-0 z-10 w-1/8"
+      :aria-label="`Next: ${nextSong.title}`"
+    />
   </template>
 </template>
 
